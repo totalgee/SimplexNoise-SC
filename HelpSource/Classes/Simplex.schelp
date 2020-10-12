@@ -1,0 +1,127 @@
+TITLE:: Simplex
+summary:: Simplex (spatial) noise functions
+categories:: Random
+related:: Classes/Perlin3
+
+DESCRIPTION::
+This class is just a group of functions to generate Simplex Noise (link::https://en.wikipedia.org/wiki/Simplex_noise::) in 2D and 3D space. In a musical context, one-dimensional noise may be of more interest, but higher dimensions are useful, for example to allow the sequence to vary over time, or to produce looping pseudo-noise (the link::#*periodic:: helper provides this functionaity).
+
+The link::#*noise2:: and link::#*noise3:: functions are based on the example Java code (in the public domain) by Stefan Gustavson, with optimizations by Peter Eastman. You can read the paper (link::http://staffwww.itn.liu.se/~stegu/simplexnoise/simplexnoise.pdf::) or see the original code (link::http://weber.itn.liu.se/~stegu/simplexnoise/SimplexNoise.java::).
+
+The functions return noise values in the range of -1 to 1 (approximately; it may sometimes go slightly outside this range). Simplex noise is repeatable, so for the same inputs it will produce the same outputs. If you want to "reseed" it, use a transform (offset, scaling or rotation) on the 2D or 3D (vector) arguments.
+
+For 1D noise, just use link::#*noise2:: with a constant value for strong::yin::.
+
+First code examples:
+
+code::
+Simplex.noise2(215.33,-192.07);
+// -> 0.12348...
+Simplex.noise3(5.077, 7.508, 7.33);
+// -> -0.54564...
+
+::
+
+CLASSMETHODS::
+
+METHOD:: new
+	An error will be thrown if you try to make an instance of this class. It has no instance data and all methods are class methods.
+
+
+METHOD:: periodic
+	Periodic one-dimensional Simplex noise.
+code::
+// The `periodic` function loops from 0-1, 1-2, 2-3...
+(0,0.01..3).collect{ arg x; Simplex.periodic(x) }.plot;
+::
+
+argument:: x
+	The "time" (arbitary 1D parameter), typically from 0.0 to 1.0, at which to evaluate periodic noise. strong::x:: outside the range of 0-1 will repeat.
+argument:: offset
+	A scalar or vector of two values, used to offset the "origin" of the noise space. This can be used to provide a different noise "seed". Very small changes to the strong::offset:: will provide small variations in the noise.
+argument:: freqScale
+	Scaling of the noise space (effectively its "frequency"). Larger values will make the noise change direction more times in each cycle.
+argument:: oct
+	How many octaves of noise to sum. This provides more random "detail". Useful range is generally from 1 to 8. Adding more octaves will increase calculation time.
+
+
+METHOD:: fBm2
+	Fractional (or fractal) Brownian motion (link::https://en.wikipedia.org/wiki/Fractional_Brownian_motion::) noise in 2D, which performs of sum of increasingly higher-frequency octaves of 2D Simplex noise.
+argument:: xin
+argument:: yin
+	The 2D coordinates at which to evaluate the noise function.
+argument:: oct
+	How many octaves of noise to sum. This provides more random "detail". Useful range is generally from 1 to 8. Adding more octaves will increase calculation time.
+
+
+METHOD:: fBm3
+	Fractional (or fractal) Brownian motion noise in 3D, which performs of sum of increasingly higher-frequency octaves of 3D Simplex noise.
+argument:: xin
+argument:: yin
+argument:: zin
+	The 3D coordinates at which to evaluate the noise function.
+argument:: oct
+	How many octaves of noise to sum. This provides more random "detail". Useful range is generally from 1 to 8. Adding more octaves will increase calculation time.
+
+
+METHOD:: noise2
+	A Simplex noise function in 2D. Takes a coordinate and returns a scalar "spatial noise" value.
+argument:: xin
+argument:: yin
+	The 2D coordinate at which to evaluate the noise function.
+
+
+METHOD:: noise3
+	A Simplex noise function in 3D. Takes a coordinate and returns a scalar "spatial noise" value.
+argument:: xin
+argument:: yin
+argument:: zin
+	The 3D coordinate at which to evaluate the noise function.
+
+
+INSTANCEMETHODS::
+
+None. Use the class methods, there is no need to create instances of Simplex class, since there is no instance-specific data.
+
+EXAMPLES::
+
+code::
+(-1,-0.95..3).collect{ arg x; Simplex.noise2(x,-7.1) }.plot;
+
+(
+(-1,-0.98..3).collect{ arg x;
+	(1..5).collect{ |oct| Simplex.fBm2(x, 2.35, oct) }
+}.flop.plot;
+)
+
+// The `periodic` function loops from 0-1, 1-2, 2-3...
+(0,0.01..3).collect{ arg x; Simplex.periodic(x) }.plot;
+
+// You may change the "seed" by giving a different offset,
+// and the "frequency" by changing the scale.
+(0,0.01..3).collect{ arg x; Simplex.periodic(x, [173.2, -22.73], 0.5, 4) }.plot;
+
+
+// It can be interesting to generate wavetable Buffers for sound
+// synthesis using periodic noise. The following can sometimes
+// sound quite string-like:
+s.boot;
+(
+var scale = 0.25;
+var octaves = 4;
+var offset = rand2(100.0!2); // gaussian(10,1!2);
+var frames = 512;
+var buf;
+~bufs = ~bufs ?? { 2.collect{ Buffer.alloc(s, frames*2, 1) } };
+~curBuf = ~curBuf !? { ~curBuf + 1 % 2} ? 0;
+
+buf = ~bufs[~curBuf];
+buf.sendCollection(Signal.newClear(frames).waveFill{ arg x;
+	Simplex.periodic(x, offset, scale, octaves)
+}.normalize.asWavetable);
+
+Ndef(\noiseOsc, {
+	Pan2.ar(HPF.ar(Osc.ar(buf, Rand(24,60).midicps, 0, 0.1), 20), Rand(-0.3,0.3))
+}).fadeTime_(1.5).play
+)
+::

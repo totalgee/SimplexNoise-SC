@@ -1,0 +1,14 @@
+var deps = [ ];
+
+(
+          \name: "SimplexNoise-SC",
+       \summary: "Simplex noise generators, ported from Stefan Gustavson's example Java code\nat http://weber.itn.liu.se/~stegu/simplexnoise/SimplexNoise.java.",
+        \author: "Glen Fraser",
+     \copyright: "Glen Fraser, 2020",
+       \license: "GPL",
+       \version: "0.0.1",
+        \schelp: "Classes/SimplexNoise",
+           \url: "https://github.com/totalgee/SimplexNoise-SC",
+  \dependencies: deps,
+         \since: "2020",
+)
