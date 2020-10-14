@@ -29,6 +29,7 @@
 
 Simplex {
 	classvar grad3;
+	classvar grad4;
 	classvar perm;
 	classvar permMod12;
 
@@ -62,6 +63,20 @@ Simplex {
 			SimplexGrad(1,0,-1), SimplexGrad(-1,0,-1), SimplexGrad(0,1,1),
 			SimplexGrad(0,-1,1), SimplexGrad(0,1,-1), SimplexGrad(0,-1,-1)
 		];
+		grad4 = [
+			SimplexGrad(0,1,1,1), SimplexGrad(0,1,1,-1), SimplexGrad(0,1,-1,1),
+			SimplexGrad(0,1,-1,-1), SimplexGrad(0,-1,1,1), SimplexGrad(0,-1,1,-1),
+			SimplexGrad(0,-1,-1,1), SimplexGrad(0,-1,-1,-1), SimplexGrad(1,0,1,1),
+			SimplexGrad(1,0,1,-1), SimplexGrad(1,0,-1,1), SimplexGrad(1,0,-1,-1),
+			SimplexGrad(-1,0,1,1), SimplexGrad(-1,0,1,-1), SimplexGrad(-1,0,-1,1),
+			SimplexGrad(-1,0,-1,-1), SimplexGrad(1,1,0,1), SimplexGrad(1,1,0,-1),
+			SimplexGrad(1,-1,0,1), SimplexGrad(1,-1,0,-1), SimplexGrad(-1,1,0,1),
+			SimplexGrad(-1,1,0,-1), SimplexGrad(-1,-1,0,1), SimplexGrad(-1,-1,0,-1),
+			SimplexGrad(1,1,1,0), SimplexGrad(1,1,-1,0), SimplexGrad(1,-1,1,0),
+			SimplexGrad(1,-1,-1,0), SimplexGrad(-1,1,1,0), SimplexGrad(-1,1,-1,0),
+			SimplexGrad(-1,-1,1,0), SimplexGrad(-1,-1,-1,0)
+		];
+
 		perm = 0 ! 512;
 		permMod12 = 0 ! 512;
 		// To remove the need for index wrapping, double the permutation table length
@@ -82,28 +97,27 @@ Simplex {
 		^this.fBm2(v[0], v[1], oct)
 	}
 
-	*fBm2 { arg xin, yin, oct = 3;
+	*prfBm { arg vec, oct = 3, method;
 		var sum = 0;
 		var weight = 1.0;
-		var v = [xin, yin];
 		oct.do {
-			sum = sum + (this.noise2(*v) * weight);
-			v = v * 2;
+			sum = sum + (this.perform(method, *vec) * weight);
+			vec = vec * 2;
 			weight = weight / 2;
 		}
 		^sum
 	}
 
+	*fBm2 { arg xin, yin, oct = 3;
+		^this.prfBm([xin, yin], oct, \noise2);
+	}
+
 	*fBm3 { arg xin, yin, zin, oct = 3;
-		var sum = 0;
-		var weight = 1.0;
-		var v = [xin, yin, zin];
-		oct.do {
-			sum = sum + (this.noise3(*v) * weight);
-			v = v * 2;
-			weight = weight / 2;
-		}
-		^sum
+		^this.prfBm([xin, yin, zin], oct, \noise3);
+	}
+
+	*fBm4 { arg xin, yin, zin, win, oct = 3;
+		^this.prfBm([xin, yin, zin, win], oct, \noise4);
 	}
 
 	*noise2 { arg xin, yin;
@@ -284,6 +298,134 @@ Simplex {
 		// Add contributions from each corner to get the final noise value.
 		// The result is scaled to stay just inside [-1,1]
 		^32.0*(n0 + n1 + n2 + n3);
+	}
+
+	*noise4 { arg xin, yin, zin, win;
+		var n0, n1, n2, n3, n4; // Noise contributions from the five corners
+		// Skew the (x,y,z,w) space to determine which cell of 24 simplices we're in
+		var s = (xin + yin + zin + win) * kF4; // Factor for 4D skewing
+		var i = floor(xin + s).asInteger;
+		var j = floor(yin + s).asInteger;
+		var k = floor(zin + s).asInteger;
+		var l = floor(win + s).asInteger;
+		var t = (i + j + k + l) * kG4; // Factor for 4D unskewing
+		var uX0 = i - t; // Unskew the cell origin back to (x,y,z,w) space
+		var uY0 = j - t;
+		var uZ0 = k - t;
+		var uW0 = l - t;
+		var x0 = xin - uX0;  // The x,y,z,w distances from the cell origin
+		var y0 = yin - uY0;
+		var z0 = zin - uZ0;
+		var w0 = win - uW0;
+		// For the 4D case, the simplex is a 4D shape I won't even try to describe.
+		// To find out which of the 24 possible simplices we're in, we need to
+		// determine the magnitude ordering of x0, y0, z0 and w0.
+		// Six pair-wise comparisons are performed between each possible pair
+		// of the four coordinates, and the results are used to rank the numbers.
+		var rankx = 0;
+		var ranky = 0;
+		var rankz = 0;
+		var rankw = 0;
+		var i1, j1, k1, l1; // The integer offsets for the second simplex corner
+		var i2, j2, k2, l2; // The integer offsets for the third simplex corner
+		var i3, j3, k3, l3; // The integer offsets for the fourth simplex corner
+		var x1, y1, z1, w1; // Offsets for second corner in (x,y,z,w) coords
+		var x2, y2, z2, w2;  // Offsets for third corner in (x,y,z,w) coords
+		var x3, y3, z3, w3;  // Offsets for fourth corner in (x,y,z,w) coords
+		var x4, y4, z4, w4;  // Offsets for last corner in (x,y,z,w) coords
+		var ii, jj, kk, ll;
+		var gi0, gi1, gi2, gi3, gi4;
+		var t0, t1, t2, t3, t4;
+
+		if (x0 > y0) { rankx = rankx + 1 } { ranky = ranky + 1 };
+		if (x0 > z0) { rankx = rankx + 1 } { rankz = rankz + 1 };
+		if (x0 > w0) { rankx = rankx + 1 } { rankw = rankw + 1 };
+		if (y0 > z0) { ranky = ranky + 1 } { rankz = rankz + 1 };
+		if (y0 > w0) { ranky = ranky + 1 } { rankw = rankw + 1 };
+		if (z0 > w0) { rankz = rankz + 1 } { rankw = rankw + 1 };
+		// [rankx, ranky, rankz, rankw] is a 4-vector with the numbers 0, 1, 2 and 3
+		// in some order. We use a thresholding to set the coordinates in turn.
+		// Rank 3 denotes the largest coordinate.
+		i1 = if (rankx >= 3) { 1 } { 0 };
+		j1 = if (ranky >= 3) { 1 } { 0 };
+		k1 = if (rankz >= 3) { 1 } { 0 };
+		l1 = if (rankw >= 3) { 1 } { 0 };
+		// Rank 2 denotes the second largest coordinate.
+		i2 = if (rankx >= 2) { 1 } { 0 };
+		j2 = if (ranky >= 2) { 1 } { 0 };
+		k2 = if (rankz >= 2) { 1 } { 0 };
+		l2 = if (rankw >= 2) { 1 } { 0 };
+		// Rank 1 denotes the second smallest coordinate.
+		i3 = if (rankx >= 1) { 1 } { 0 };
+		j3 = if (ranky >= 1) { 1 } { 0 };
+		k3 = if (rankz >= 1) { 1 } { 0 };
+		l3 = if (rankw >= 1) { 1 } { 0 };
+		// The fifth corner has all coordinate offsets = 1, so no need to compute that.
+		x1 = x0 - i1 + kG4; // Offsets for second corner in (x,y,z,w) coords
+		y1 = y0 - j1 + kG4;
+		z1 = z0 - k1 + kG4;
+		w1 = w0 - l1 + kG4;
+		x2 = x0 - i2 + (2.0*kG4); // Offsets for third corner in (x,y,z,w) coords
+		y2 = y0 - j2 + (2.0*kG4);
+		z2 = z0 - k2 + (2.0*kG4);
+		w2 = w0 - l2 + (2.0*kG4);
+		x3 = x0 - i3 + (3.0*kG4); // Offsets for fourth corner in (x,y,z,w) coords
+		y3 = y0 - j3 + (3.0*kG4);
+		z3 = z0 - k3 + (3.0*kG4);
+		w3 = w0 - l3 + (3.0*kG4);
+		x4 = x0 - 1.0 + (4.0*kG4); // Offsets for last corner in (x,y,z,w) coords
+		y4 = y0 - 1.0 + (4.0*kG4);
+		z4 = z0 - 1.0 + (4.0*kG4);
+		w4 = w0 - 1.0 + (4.0*kG4);
+
+		// Work out the hashed gradient indices of the five simplex corners
+		ii = i & 255;
+		jj = j & 255;
+		kk = k & 255;
+		ll = l & 255;
+		gi0 = perm[ii+perm[jj+perm[kk+perm[ll]]]] % 32;
+		gi1 = perm[ii+i1+perm[jj+j1+perm[kk+k1+perm[ll+l1]]]] % 32;
+		gi2 = perm[ii+i2+perm[jj+j2+perm[kk+k2+perm[ll+l2]]]] % 32;
+		gi3 = perm[ii+i3+perm[jj+j3+perm[kk+k3+perm[ll+l3]]]] % 32;
+		gi4 = perm[ii+1+perm[jj+1+perm[kk+1+perm[ll+1]]]] % 32;
+		// Calculate the contribution from the five corners
+		t0 = 0.6 - (x0*x0) - (y0*y0) - (z0*z0) - (w0*w0);
+		if (t0<0) {
+			n0 = 0.0;
+		} {
+			t0 = t0 * t0;
+			n0 = t0 * t0 * grad4[gi0].dot4(x0, y0, z0, w0);
+		};
+		t1 = 0.6 - (x1*x1) - (y1*y1) - (z1*z1) - (w1*w1);
+		if (t1<0) {
+			n1 = 0.0;
+		} {
+			t1 = t1 * t1;
+			n1 = t1 * t1 * grad4[gi1].dot4(x1, y1, z1, w1);
+		};
+		t2 = 0.6 - (x2*x2) - (y2*y2) - (z2*z2) - (w2*w2);
+		if (t2<0) {
+			n2 = 0.0;
+		} {
+			t2 = t2 * t2;
+			n2 = t2 * t2 * grad4[gi2].dot4(x2, y2, z2, w2);
+		};
+		t3 = 0.6 - (x3*x3) - (y3*y3) - (z3*z3) - (w3*w3);
+		if (t3<0) {
+			n3 = 0.0;
+		} {
+			t3 = t3 * t3;
+			n3 = t3 * t3 * grad4[gi3].dot4(x3, y3, z3, w3);
+		};
+		t4 = 0.6 - (x4*x4) - (y4*y4) - (z4*z4) - (w4*w4);
+		if (t4<0) {
+			n4 = 0.0;
+		} {
+			t4 = t4 * t4;
+			n4 = t4 * t4 * grad4[gi4].dot4(x4, y4, z4, w4);
+		};
+		// Sum up and scale the result to cover the range [-1,1]
+		^27.0 * (n0 + n1 + n2 + n3 + n4);
 	}
 
 }

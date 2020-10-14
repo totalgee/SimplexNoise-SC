@@ -6,7 +6,7 @@ var deps = [ ];
         \author: "Glen Fraser",
      \copyright: "Glen Fraser, 2020",
        \license: "GPL",
-       \version: "0.0.1",
+       \version: "0.0.2",
         \schelp: "Classes/SimplexNoise",
            \url: "https://github.com/totalgee/SimplexNoise-SC",
   \dependencies: deps,

@@ -4,9 +4,9 @@ categories:: Random
 related:: Classes/Perlin3
 
 DESCRIPTION::
-This class is just a group of functions to generate Simplex Noise (link::https://en.wikipedia.org/wiki/Simplex_noise::) in 2D and 3D space. In a musical context, one-dimensional noise may be of more interest, but higher dimensions are useful, for example to allow the sequence to vary over time, or to produce looping pseudo-noise (the link::#*periodic:: helper provides this functionaity).
+This class is just a group of functions to generate Simplex Noise (link::https://en.wikipedia.org/wiki/Simplex_noise::) in 2D, 3D and 4D space. In a musical context, one-dimensional noise may be of more interest, but higher dimensions are useful, for example to allow the sequence to vary over time, or to produce looping pseudo-noise (the link::#*periodic:: helper provides this functionaity).
 
-The link::#*noise2:: and link::#*noise3:: functions are based on the example Java code (in the public domain) by Stefan Gustavson, with optimizations by Peter Eastman. You can read the paper (link::http://staffwww.itn.liu.se/~stegu/simplexnoise/simplexnoise.pdf::) or see the original code (link::http://weber.itn.liu.se/~stegu/simplexnoise/SimplexNoise.java::).
+The link::#*noise2::, link::#*noise3:: and link::#*noise4:: functions are based on the example Java code (in the public domain) by Stefan Gustavson, with optimizations by Peter Eastman. You can read the paper (link::http://staffwww.itn.liu.se/~stegu/simplexnoise/simplexnoise.pdf::) or see the original code (link::http://weber.itn.liu.se/~stegu/simplexnoise/SimplexNoise.java::).
 
 The functions return noise values in the range of -1 to 1 (approximately; it may sometimes go slightly outside this range). Simplex noise is repeatable, so for the same inputs it will produce the same outputs. If you want to "reseed" it, use a transform (offset, scaling or rotation) on the 2D or 3D (vector) arguments.
 
@@ -19,10 +19,13 @@ Simplex.noise2(215.33,-192.07);
 // -> 0.12348...
 Simplex.noise3(5.077, 7.508, 7.33);
 // -> -0.54564...
-
+Simplex.fBm4(11.2, 22.3, -34.5, 77.1, 4);
+// -> -0.04380...
 ::
 
 CLASSMETHODS::
+
+private:: prfBm
 
 METHOD:: new
 	An error will be thrown if you try to make an instance of this class. It has no instance data and all methods are class methods.
@@ -64,6 +67,17 @@ argument:: oct
 	How many octaves of noise to sum. This provides more random "detail". Useful range is generally from 1 to 8. Adding more octaves will increase calculation time.
 
 
+METHOD:: fBm4
+	Fractional (or fractal) Brownian motion noise in 4D, which performs of sum of increasingly higher-frequency octaves of 4D Simplex noise.
+argument:: xin
+argument:: yin
+argument:: zin
+argument:: win
+	The 4D coordinates at which to evaluate the noise function.
+argument:: oct
+	How many octaves of noise to sum. This provides more random "detail". Useful range is generally from 1 to 8. Adding more octaves will increase calculation time.
+
+
 METHOD:: noise2
 	A Simplex noise function in 2D. Takes a coordinate and returns a scalar "spatial noise" value.
 argument:: xin
@@ -77,6 +91,15 @@ argument:: xin
 argument:: yin
 argument:: zin
 	The 3D coordinate at which to evaluate the noise function.
+
+
+METHOD:: noise4
+	A Simplex noise function in 4D. Takes a coordinate and returns a scalar "spatial noise" value.
+argument:: xin
+argument:: yin
+argument:: zin
+argument:: win
+	The 4D coordinate at which to evaluate the noise function.
 
 
 INSTANCEMETHODS::
@@ -123,5 +146,23 @@ buf.sendCollection(Signal.newClear(frames).waveFill{ arg x;
 Ndef(\noiseOsc, {
 	Pan2.ar(HPF.ar(Osc.ar(buf, Rand(24,60).midicps, 0, 0.1), 20), Rand(-0.3,0.3))
 }).fadeTime_(1.5).play
+)
+
+// Draw an animated 2D slice of 3D noise
+(
+var width=64, height=64, a, persistance=0.75, octaves=4, scale=8;
+var win = Window("A slice of 3D Simplex noise", Rect(128, 128, width*scale, height*scale), false);
+var uv = UserView(win, Rect(0, 0, win.bounds.width, win.bounds.height));
+uv.animate_(true).frameRate_(10).background_(Color.black);
+uv.drawFunc = {
+	height.do{ |y|
+		width.do{ |x|
+			var noise = Simplex.fBm3(x/width*2, y/height*2, AppClock.seconds*0.05, octaves);
+			Pen.fillColor = Color.grey(noise.linlin(-1,1,0,1));
+			Pen.fillRect(Rect.aboutPoint(Point(x, y)*scale, scale, scale));
+		};
+	};
+};
+win.front;
 )
 ::
